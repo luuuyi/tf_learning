@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np 
+from numpy.random import RandomState
 
 x_input = tf.constant(2, tf.int16)
 w_input = tf.constant(4, tf.float16)
@@ -72,6 +73,11 @@ with tf.Session(graph=graph) as sess:
 
 #---------------------------------------------------------------------------------------------
 batch_size = 10
+iters = 20000
+data_size = 512
+rst = RandomState(1)
+X = rst.rand(data_size, 2)
+Y = [[int(x1+x2<1)] for (x1, x2) in X]
 
 graph = tf.Graph()
 with graph.as_default():
@@ -81,10 +87,20 @@ with graph.as_default():
     input_y = tf.placeholder(tf.float32, [None, 1])
 
     a = tf.matmul(input_x, w1)
-    relu_a = tf.nn.relu(a)
+    relu_a = tf.nn.sigmoid(a)
     b = tf.matmul(relu_a, w2)
-    cross_entr_loss = -tf.reduce_mean(input_y*tf.clip_by_value(b, 1e-10, 1.0))
+    relu_b = tf.nn.sigmoid(b)
+    cross_entr_loss = -tf.reduce_mean(input_y*tf.log(tf.clip_by_value(relu_b, 1e-10, 1.0)))
     train = tf.train.AdamOptimizer().minimize(cross_entr_loss)
 
-with tf.Session() as sess:
+with tf.Session(graph=graph) as sess:
     sess.run(tf.global_variables_initializer())
+    print(sess.run(w1))
+    print(sess.run(w2))
+    for i in range(iters):
+        start = i*batch_size%data_size
+        end = min(start+batch_size, data_size)
+        feed_dict = {input_x:X[start:end], input_y:Y[start:end]}
+        sess.run(train, feed_dict=feed_dict)
+        if i % 500 == 0:
+            print('The %d iter, loss is %f'%(i, sess.run(cross_entr_loss, feed_dict=feed_dict)))
